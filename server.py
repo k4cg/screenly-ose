@@ -25,6 +25,8 @@ from bottle import route, run, request, error, static_file, response
 from bottle import HTTPResponse, auth_basic
 from bottlehaml import haml_template
 
+from passlib.apache import HtpasswdFile
+
 import db
 import queries
 import assets_helper
@@ -110,9 +112,7 @@ def template(template_name, **context):
     return haml_template(template_name, **context)
 
 def check_password(user, password):
-    if user == 'foo' and password == 'bar':
-        return True
-    return False
+    return auth.verify(user.encode('latin-1'), password)
 
 ################################
 # Model
@@ -384,6 +384,10 @@ if __name__ == "__main__":
     # Create config dir if it doesn't exist
     if not path.isdir(settings.get_configdir()):
         makedirs(settings.get_configdir())
+
+    if settings['authentication']:
+        global auth
+        auth = HtpasswdFile(settings['htpasswd'])
 
     with db.conn(settings['database']) as conn:
         global db_conn

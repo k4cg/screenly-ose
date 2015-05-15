@@ -19,6 +19,7 @@ import json
 import os
 import traceback
 import uuid
+import functools
 
 from bottle import route, run, request, error, static_file, response
 from bottle import HTTPResponse, auth_basic
@@ -39,6 +40,18 @@ from settings import settings, DEFAULTS
 # Utilities
 ################################
 
+do_auth = True
+
+def noauth(check, realm="private", text="Access denied"):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*a, **ka):
+            return func(*a, **ka)
+        return wrapper
+    return decorator
+
+if not do_auth:
+    auth_basic = noauth
 
 def make_json_response(obj):
     response.content_type = "application/json"

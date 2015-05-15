@@ -19,9 +19,10 @@ import json
 import os
 import traceback
 import uuid
+import functools
 
 from bottle import route, run, request, error, static_file, response
-from bottle import HTTPResponse
+from bottle import HTTPResponse, auth_basic
 from bottlehaml import haml_template
 
 import db
@@ -39,6 +40,18 @@ from settings import settings, DEFAULTS
 # Utilities
 ################################
 
+do_auth = True
+
+def noauth(check, realm="private", text="Access denied"):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*a, **ka):
+            return func(*a, **ka)
+        return wrapper
+    return decorator
+
+if not do_auth:
+    auth_basic = noauth
 
 def make_json_response(obj):
     response.content_type = "application/json"
@@ -95,6 +108,10 @@ def template(template_name, **context):
 
     return haml_template(template_name, **context)
 
+def check_password(user, password):
+    if user == 'foo' and password == 'bar':
+        return True
+    return False
 
 ################################
 # Model
@@ -196,6 +213,7 @@ def prepare_asset(request):
 
 
 @route('/api/assets', method="GET")
+@auth_basic(check_password)
 def api_assets():
     assets = assets_helper.read(db_conn)
     return make_json_response(assets)
@@ -216,6 +234,7 @@ def api(view):
 
 
 @route('/api/assets', method="POST")
+@auth_basic(check_password)
 @api
 def add_asset():
     asset = prepare_asset(request)
@@ -225,18 +244,21 @@ def add_asset():
 
 
 @route('/api/assets/:asset_id', method="GET")
+@auth_basic(check_password)
 @api
 def edit_asset(asset_id):
     return assets_helper.read(db_conn, asset_id)
 
 
 @route('/api/assets/:asset_id', method=["PUT", "POST"])
+@auth_basic(check_password)
 @api
 def edit_asset(asset_id):
     return assets_helper.update(db_conn, asset_id, prepare_asset(request))
 
 
 @route('/api/assets/:asset_id', method="DELETE")
+@auth_basic(check_password)
 @api
 def remove_asset(asset_id):
     asset = assets_helper.read(db_conn, asset_id)
@@ -250,6 +272,7 @@ def remove_asset(asset_id):
 
 
 @route('/api/assets/order', method="POST")
+@auth_basic(check_password)
 @api
 def playlist_order():
     "Receive a list of asset_ids in the order they should be in the playlist"
@@ -262,11 +285,13 @@ def playlist_order():
 
 
 @route('/')
+@auth_basic(check_password)
 def viewIndex():
     return template('index')
 
 
 @route('/settings', method=["GET", "POST"])
+@auth_basic(check_password)
 def settings_page():
 
     context = {'flash': None}
@@ -291,6 +316,7 @@ def settings_page():
 
 
 @route('/system_info')
+@auth_basic(check_password)
 def system_info():
     viewer_log_file = '/tmp/screenly_viewer.log'
     if path.exists(viewer_log_file):
@@ -319,6 +345,7 @@ def system_info():
 
 
 @route('/splash_page')
+@auth_basic(check_password)
 def splash_page():
     my_ip = get_node_ip()
     if my_ip:
@@ -346,6 +373,7 @@ def mistake404(code):
 ################################
 
 @route('/static/:path#.+#', name='static')
+@auth_basic(check_password)
 def static(path):
     return static_file(path, root='static')
 

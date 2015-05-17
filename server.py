@@ -25,6 +25,8 @@ from bottle import route, run, request, error, static_file, response
 from bottle import HTTPResponse, auth_basic
 from bottlehaml import haml_template
 
+from passlib.apache import HtpasswdFile
+
 import db
 import queries
 import assets_helper
@@ -40,17 +42,18 @@ from settings import settings, DEFAULTS
 # Utilities
 ################################
 
-do_auth = True
-
 def noauth(check, realm="private", text="Access denied"):
+
     def decorator(func):
+
         @functools.wraps(func)
         def wrapper(*a, **ka):
             return func(*a, **ka)
         return wrapper
+
     return decorator
 
-if not do_auth:
+if not settings['authentication']:
     auth_basic = noauth
 
 def make_json_response(obj):
@@ -109,9 +112,7 @@ def template(template_name, **context):
     return haml_template(template_name, **context)
 
 def check_password(user, password):
-    if user == 'foo' and password == 'bar':
-        return True
-    return False
+    return auth.verify(user.encode('latin-1'), password)
 
 ################################
 # Model
@@ -345,7 +346,6 @@ def system_info():
 
 
 @route('/splash_page')
-@auth_basic(check_password)
 def splash_page():
     my_ip = get_node_ip()
     if my_ip:
@@ -373,7 +373,6 @@ def mistake404(code):
 ################################
 
 @route('/static/:path#.+#', name='static')
-@auth_basic(check_password)
 def static(path):
     return static_file(path, root='static')
 
@@ -385,6 +384,10 @@ if __name__ == "__main__":
     # Create config dir if it doesn't exist
     if not path.isdir(settings.get_configdir()):
         makedirs(settings.get_configdir())
+
+    if settings['authentication']:
+        global auth
+        auth = HtpasswdFile(settings['htpasswd'])
 
     with db.conn(settings['database']) as conn:
         global db_conn
